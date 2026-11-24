@@ -92,10 +92,12 @@ function openCalib(){curPanel=openCalib;
 const calibAt=i=>calibRef(land.pts[i]);
 async function calibRef(p){
  if(!me){toast('GPS هنوز موقعیت نداده');return}if(busy)return;busy=true;
- const secs=Math.max(8,S.avg*2);if(!$('#cpb'))toast('گوشی رو ثابت نگه دار و صبر کن...');GOFF=null;kfReset();rawBuf=[];const t0=Date.now();
- while(Date.now()-t0<secs*1000){const b=$('#cpb');if(b)b.style.width=((Date.now()-t0)/secs/10)+'%';const t=$('#ctx');if(t)t.textContent='گوشی رو ثابت نگه دار...';await sleep(200)}
- const rm=robustMean(rawBuf);rawBuf=null;busy=false;
- if(!rm||rm.n<3){toast('نمونه‌ی کافی نبود؛ دوباره امتحان کن');return}
+ const secs=Math.max(8,S.avg*2),MINN=8,MAXS=40;if(!$('#cpb'))toast('گوشی رو ثابت نگه دار و صبر کن...');GOFF=null;kfReset();rawBuf=[];const t0=Date.now();
+ while(true){const el=(Date.now()-t0)/1000,n=rawBuf?rawBuf.length:0;if(el>=MAXS||(el>=secs&&n>=MINN))break;
+  const b=$('#cpb');if(b)b.style.width=Math.min(100,Math.max(el/secs,n/MINN)*100)+'%';const t=$('#ctx');if(t)t.textContent=`گوشی رو ثابت نگه دار... ${fa(n)} از ${fa(MINN)} نمونه`;
+  else if(Math.floor(el)%3===0&&el%1<.25)toast(`گوشی رو ثابت نگه دار... ${fa(n)} از ${fa(MINN)} نمونه`);await sleep(200)}
+ const cnt=rawBuf.length,rm=robustMean(rawBuf);rawBuf=null;busy=false;
+ if(!rm||rm.n<3){toast(cnt<3?`GPS توی ${fa(MAXS)} ثانیه فقط ${fa(cnt)} موقعیت داد. مطمئن شو مجوز «دقیق» روشنه و بیرون از ساختمونی، بعد دوباره امتحان کن.`:`GPS پرنوسانه (${fa(cnt)} نمونه، ولی پراکنده). کمی صبر کن تا دقتش بهتر بشه و دوباره امتحان کن.`);return}
  const dl=p.lat-rm.lat,dg=p.lng-rm.lng,mt=Math.hypot(dl*111320,dg*111320*Math.cos(p.lat*rad));
  if(mt>80){toast('فاصله‌ی GPS با این نقطه '+mcm(mt)+' شد؛ مطمئنی کنار همین نقطه‌ای؟');return}
  GOFF={dlat:dl,dlng:dg,ref:0};kfReset();toast('کالیبره شد؛ اصلاح '+mcm(mt));renderAll();updateMode();if(curPanel===openCalib)openCalib()}
