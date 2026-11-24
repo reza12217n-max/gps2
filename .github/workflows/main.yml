@@ -1,0 +1,50 @@
+name: Build APK
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm install
+      - name: Make sure Android SDK 34 exists
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+      - name: Add Vazirmatn font (optional)
+        run: |
+          mkdir -p www/fonts
+          if [ ! -f www/fonts/Vazirmatn.woff2 ]; then
+            npm install --no-save vazirmatn || true
+            f=$(find node_modules/vazirmatn -name 'Vazirmatn*wght*.woff2' ! -name '*RD*' ! -name '*UI*' 2>/dev/null | head -1)
+            if [ -z "$f" ]; then f=$(find node_modules/vazirmatn -name '*Regular*.woff2' 2>/dev/null | head -1); fi
+            if [ -n "$f" ]; then cp "$f" www/fonts/Vazirmatn.woff2; else echo "font not found, using system font"; fi
+          fi
+      - run: npx cap add android
+      - name: Add location permission
+        run: |
+          f=android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n</manifest>#' $f
+      - name: App icons
+        run: cp -r resources/android/res/. android/app/src/main/res/
+      - run: npx cap sync android
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zamin-naghshe-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
